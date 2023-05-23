@@ -26,6 +26,8 @@ import org.apache.cordova.PermissionHelper;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.AudioManager.OnAudioFocusChangeListener;
 import android.net.Uri;
@@ -53,7 +55,7 @@ import java.util.HashMap;
  * 		android_asset: 		file name must start with /android_asset/sound.mp3
  * 		sdcard:				file name is just sound.mp3
  */
-public class AudioHandler extends CordovaPlugin {
+public class AudioHandler extends CordovaPlugin implements OnAudioFocusChangeListener {
 
     public static String TAG = "AudioHandler";
     HashMap<String, AudioPlayer> players;  // Audio player object
@@ -426,30 +428,33 @@ public class AudioHandler extends CordovaPlugin {
     /**
      * Get the the audio focus
      */
-    private OnAudioFocusChangeListener focusChangeListener = new OnAudioFocusChangeListener() {
-            public void onAudioFocusChange(int focusChange) {
-                switch (focusChange) {
-                case (AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) :
-                case (AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) :
-                case (AudioManager.AUDIOFOCUS_LOSS) :
-                    pauseAllLostFocus();
-                    break;
-                case (AudioManager.AUDIOFOCUS_GAIN):
-                    resumeAllGainedFocus();
-                    break;
-                default:
-                    break;
-                }
-            }
-        };
+    @Override
+    public void onAudioFocusChange(int focusChange) {
+        switch (focusChange) {
+            case (AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) :
+            case (AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) :
+            case (AudioManager.AUDIOFOCUS_LOSS) :
+                pauseAllLostFocus();
+                break;
+            case (AudioManager.AUDIOFOCUS_GAIN):
+                resumeAllGainedFocus();
+                break;
+            default:
+                break;
+        }
+    }
 
     public void getAudioFocus() {
         String TAG2 = "AudioHandler.getAudioFocus(): Error : ";
 
         AudioManager am = (AudioManager) this.cordova.getActivity().getSystemService(Context.AUDIO_SERVICE);
-        int result = am.requestAudioFocus(focusChangeListener,
-                                          AudioManager.STREAM_MUSIC,
-                                          AudioManager.AUDIOFOCUS_GAIN);
+        AudioAttributes mAudioAttributes = new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).setUsage(AudioAttributes.USAGE_MEDIA).build();
+        AudioFocusRequest mFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(mAudioAttributes)
+                .setAcceptsDelayedFocusGain(true)
+                .setWillPauseWhenDucked(true)
+                .setOnAudioFocusChangeListener(this).build();
+        int result = am.requestAudioFocus(mFocusRequest);
 
         if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             LOG.e(TAG2,result + " instead of " + AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
